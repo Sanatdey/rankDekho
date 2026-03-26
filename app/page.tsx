@@ -60,10 +60,15 @@ export default function Home() {
 
         {/* 🔥 STRONG VIDEO PUSH */}
         <div className="mt-5 text-center">
+          <p className="mt-2 text-sm">
+          ℹ️{" "}
+          <Link href="/normalization-info" className="text-blue-600 underline">
+            How your marks will change after normalization
+          </Link>
+        </p>
           <p className="text-sm text-gray-600">
             📊 Want detailed cutoff & selection analysis?
           </p>
-
           <a
             href="https://www.youtube.com/channel/UCRy0SOk3XQCa0L0TFDuzIwQ"
             target="_blank"

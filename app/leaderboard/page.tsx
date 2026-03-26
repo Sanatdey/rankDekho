@@ -5,7 +5,6 @@ interface LeaderboardEntry {
   id: string;
   name: string;
   marks: number;
-  normalizedMarks?: number;
   shift?: string;
   rank?: number;
 }
@@ -26,6 +25,9 @@ export default function Leaderboard() {
   const [lastId, setLastId] = useState<string | null>(null);
   const [stats, setStats] = useState({ totalUsers: 0, highestMarks: 0 });
 
+  // 🔥 NEW: normalization stats
+  const [normStats, setNormStats] = useState<any>(null);
+
   const zones = [
     "Ahmedabad","Ajmer","Allahabad (Prayagraj)","Bangalore","Bhopal",
     "Bhubaneswar","Bilaspur","Chandigarh","Chennai","Gorakhpur",
@@ -39,6 +41,13 @@ export default function Leaderboard() {
     const res = await fetch("/api/stats");
     const json = await res.json();
     setStats(json);
+  };
+
+  // 🔥 NEW
+  const fetchNormStats = async () => {
+    const res = await fetch("/api/normalization-stats");
+    const json = await res.json();
+    setNormStats(json);
   };
 
   const fetchData = async (loadMore = false) => {
@@ -88,12 +97,33 @@ export default function Leaderboard() {
 
   useEffect(() => {
     fetchStats();
+    fetchNormStats(); // 🔥 NEW
     fetchData();
   }, [zone, category]);
 
   const finalData = search ? searchResults : data;
 
   const userRank = searchResults[0]?.rank;
+
+  // 🔥 NORMALIZE FUNCTION
+  const normalize = (marks: number, shift?: string) => {
+    if (!normStats || !shift) return "-";
+
+    const shiftStats = normStats.shifts?.[shift];
+    const global = normStats.global;
+
+    if (!shiftStats || shiftStats.sd === 0) return marks;
+
+    const normalized =
+      ((marks - shiftStats.mean) / shiftStats.sd) *
+        global.sd +
+      global.mean;
+
+    return Number(normalized.toFixed(2));
+  };
+
+  // 🔥 TOP 3 (only leaderboard mode)
+  const top3 = !search ? data.slice(0, 3) : [];
 
   return (
     <main className="min-h-screen bg-gray-50 px-4 py-6">
@@ -104,16 +134,25 @@ export default function Leaderboard() {
           RRB Nursing Superintendent 2026
         </h1>
 
-        <p className="text-red-600 font-bold mt-3">
-          🔥 {stats.totalUsers}+ students already ranked
-        </p>
+        <div className="mt-3 flex items-center justify-center gap-2">
+          <p className="text-red-600 font-bold">
+            🔥 {stats.totalUsers}+ students already ranked
+          </p>
 
-        <p className="mt-2">
-          🏆 Highest mark:
-          <span className="text-xl font-bold text-blue-600 ml-2">
-            {stats.highestMarks}
-          </span>
-        </p>
+          <button
+            onClick={() => fetchData()}
+            className="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 transition"
+          >
+            🔄
+          </button>
+        </div>
+
+       <p className="mt-3 flex items-center justify-center gap-2">
+        🏆 Highest mark:
+        <span className="px-3 py-1 rounded-full bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold shadow-md">
+          {stats.highestMarks}
+        </span>
+      </p>
       </div>
 
       {/* SEARCH */}
@@ -212,11 +251,30 @@ export default function Leaderboard() {
                   highlight ? "bg-yellow-50 border-yellow-300" : ""
                 }`}
               >
-                <span>{rank ? `Rank ${rank}` : "—"}</span>
+                <span className="flex items-center">
+                  {rank ? (
+                    <div
+                      className={`flex items-center justify-center w-10 h-10 rounded-full text-base font-extrabold shadow-md
+                        ${
+                          rank === 1
+                            ? "bg-gradient-to-br from-yellow-400 to-amber-600 text-white"
+                            : rank === 2
+                            ? "bg-gradient-to-br from-gray-300 to-gray-500 text-white"
+                            : rank === 3
+                            ? "bg-gradient-to-br from-orange-400 to-orange-600 text-white"
+                            : "bg-gray-100 text-gray-700"
+                        }`}
+                    >
+                      {rank}
+                    </div>
+                  ) : (
+                    "—"
+                  )}
+                </span>
                 <span className="truncate font-medium">{item.name}</span>
                 <span>{item.marks}</span>
-                <span>{item.shift ?? "-"}</span>
-                <span>{item.normalizedMarks ?? "-"}</span>
+                <span>{item.shift ? `Shift ${item.shift}` : "-"}</span>
+                <span>{normalize(item.marks, item.shift)}</span>
               </div>
             );
           })
@@ -236,22 +294,21 @@ export default function Leaderboard() {
         </div>
       )}
 
-      { (
-        <div className="max-w-2xl mx-auto mt-8 bg-white rounded-xl shadow-sm p-5 text-center border">
-          <p className="text-sm text-gray-500">🎯 Rank mil gaya?</p>
-          <h3 className="text-lg font-semibold mt-1">
-            Selection hoga ya nahi? 🤔
-          </h3>
+      {/* CTA */}
+      <div className="max-w-2xl mx-auto mt-8 bg-white rounded-xl shadow-sm p-5 text-center border">
+        <p className="text-sm text-gray-500">🎯 Rank mil gaya?</p>
+        <h3 className="text-lg font-semibold mt-1">
+          Selection hoga ya nahi? 🤔
+        </h3>
 
-          <a
-            href="https://www.youtube.com/@VidyaDeepamOfficial"
-            target="_blank"
-            className="inline-block mt-4 bg-gradient-to-r from-amber-600 via-orange-500 to-red-600 text-white px-6 py-2 rounded-lg hover:from-amber-700 hover:via-orange-600 hover:to-red-700 transition font-semibold"
-          >
-            📊 Daily updates on YouTube 📊
-          </a>
-        </div>
-      )}
+        <a
+          href="https://www.youtube.com/@VidyaDeepamOfficial"
+          target="_blank"
+          className="inline-block mt-4 bg-gradient-to-r from-amber-600 via-orange-500 to-red-600 text-white px-6 py-2 rounded-lg font-semibold"
+        >
+          📊 Daily updates on YouTube 📊
+        </a>
+      </div>
     </main>
   );
 }
