@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState,useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 export default function SubmitPage() {
@@ -27,6 +27,15 @@ export default function SubmitPage() {
   const [success, setSuccess] = useState("");
 
   const [rank, setRank] = useState<any>(null);
+
+  useEffect(() => {
+  const prevent = (e: Event) => e.preventDefault();
+  document.addEventListener("submit", prevent);
+
+  return () => {
+    document.removeEventListener("submit", prevent);
+  };
+}, []);
 
 const submit = async () => {
   if (loading) return;
@@ -168,7 +177,11 @@ const submit = async () => {
 
             <button
               type="button"
-              onClick={submit}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                submit();
+              }}
               disabled={loading}
               className="w-full mt-6 py-2 bg-gradient-to-r from-amber-600 via-orange-500 to-red-600 text-white rounded-lg"
             >
