@@ -7,7 +7,15 @@ interface LeaderboardEntry {
   name: string;
   marks: number;
   shift?: string;
+
+  // existing
   rank?: number;
+
+  // 🔥 ADD THIS
+  normalizedRank?: number;
+
+  // 🔥 ALSO ADD (since you use it)
+  normalized?: number;
 }
 
 export default function Leaderboard() {
@@ -105,26 +113,26 @@ export default function Leaderboard() {
   const userRank = searchResults[0]?.rank;
 
   // 🔥 NORMALIZE FUNCTION
-  const normalize = (marks: number, shift?: string) => {
-    if (!normStats || !shift) return "-";
+const normalize = (marks: number, shift?: string): number => {
+  if (!normStats || !shift) return 0;
 
-    const shiftStats = normStats.shifts?.[shift];
-    const global = normStats.global;
+  const shiftStats = normStats.shifts?.[shift];
+  const global = normStats.global;
 
-    if (!shiftStats || shiftStats.sd === 0) return marks;
+  if (!shiftStats || shiftStats.sd === 0) return marks;
 
-    const normalized =
-      ((marks - shiftStats.mean) / shiftStats.sd) *
-        global.sd +
-      global.mean;
+  const normalized =
+    ((marks - shiftStats.mean) / shiftStats.sd) *
+      global.sd +
+    global.mean;
 
-    return Number(normalized.toFixed(2));
-  };
+  return Number(normalized.toFixed(2));
+};
 
-   const enrichedData = data.map(item => ({
-    ...item,
-    normalized: normalize(item.marks, item.shift)
-  }));
+const enrichedData = data.map(item => ({
+  ...item,
+  normalized: normalize(item.marks, item.shift)
+}));
 
   const sortedByNorm = [...enrichedData].sort(
     (a, b) => b.normalized - a.normalized

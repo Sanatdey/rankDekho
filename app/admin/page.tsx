@@ -15,10 +15,12 @@ interface Entry {
   name: string;
   marks: number;
   zone: string;
-  exam: string;
+  category: string;
   shift: string;
-  number?: string;
-}
+  exam?: string;
+  normalizedMarks?: number;
+  createdAt?: any;
+};
 
 export default function CleanupPage() {
   const [data, setData] = useState<Entry[]>([]);
@@ -42,8 +44,8 @@ export default function CleanupPage() {
       ...(d.data() as any),
     }));
     list.sort((a, b) => {
-      const keyA = `${a.name}_${a.zone}_${a.exam}_${a.shift}_${a.number}`;
-      const keyB = `${b.name}_${b.zone}_${b.exam}_${b.shift}_${b.number}`;
+      const keyA = `${a.name}_${a.zone}_${a.exam}_${a.shift}_${a.marks}`;
+      const keyB = `${b.name}_${b.zone}_${b.exam}_${b.shift}_${b.marks}`;
 
       if (keyA === keyB) {
         // sort duplicates by marks (highest first)
@@ -75,7 +77,7 @@ export default function CleanupPage() {
     const map = new Map<string, string[]>();
 
     data.forEach((item) => {
-      const key = `${item.name}_${item.zone}_${item.exam}_${item.shift}_${item.number}`;
+      const key = `${item.name}_${item.zone}_${item.exam}_${item.shift}_${item.marks}`;
 
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(item.id);
