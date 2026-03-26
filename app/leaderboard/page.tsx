@@ -46,10 +46,6 @@ export default function Leaderboard() {
 
   const LIMIT = 30;
 
-  useEffect(() => {
-  document.body.style.pointerEvents = "auto";
-}, []);
-
   const fetchStats = async () => {
     const res = await fetch("/api/stats");
     const json = await res.json();
