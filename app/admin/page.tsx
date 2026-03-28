@@ -94,6 +94,60 @@ export default function CleanupPage() {
 
     setSelected(new Set(dupIds));
   };
+  const handleBackup = () => {
+      if (!data.length) return;
+
+      // headers
+      const headers = [
+        "id",
+        "name",
+        "marks",
+        "zone",
+        "category",
+        "shift",
+        "exam",
+        "normalized",
+        "normalizedRank",
+        "zoneCategoryRank",
+        "createdAt",
+      ];
+
+      const rows = data.map((item) => [
+        item.id,
+        item.name,
+        item.marks,
+        item.zone,
+        item.category,
+        item.shift,
+        item.exam || "",
+        (item as any).normalized || "",
+        (item as any).normalizedRank || "",
+        (item as any).zoneCategoryRank || "",
+        item.createdAt?.toDate?.().toISOString?.() || "",
+      ]);
+
+      const csvContent =
+        [headers, ...rows]
+          .map((row) =>
+            row
+              .map((val) =>
+                `"${String(val ?? "").replace(/"/g, '""')}"`
+              )
+              .join(",")
+          )
+          .join("\n");
+
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+
+      const url = URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `scores-backup-${Date.now()}.csv`;
+      link.click();
+
+      URL.revokeObjectURL(url);
+    };
 
   // 🔥 Bulk delete
   const handleDelete = async () => {
@@ -140,6 +194,13 @@ export default function CleanupPage() {
             className="px-4 py-2 bg-red-600 text-white rounded disabled:opacity-50"
           >
             {loading ? "Deleting..." : `Delete Selected (${selected.size})`}
+          </button>
+
+          <button
+            onClick={handleBackup}
+            className="px-4 py-2 bg-green-600 text-white rounded"
+          >
+            📥 Backup Data (CSV)
           </button>
 
         </div>

@@ -2,6 +2,7 @@
 import { trackEvent } from "../utils/gtag";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function SubmitPage() {
   const router = useRouter();
@@ -212,15 +213,14 @@ Don't trust fake predictions ⚡`;
               ⏳ Come back in 3–6 hours for updated rank
             </p>
 
-            <button
-              onClick={() => {
-                trackEvent("recalculate_clicked", {});
-                window.location.reload();
-              }}
-              className="w-full py-2 bg-green-600 text-white rounded-lg"
+
+            <Link
+              href="/leaderboard"
+              onClick={() => trackEvent("leaderboard_clicked_result", {})}
+              className="block w-full py-2 bg-green-600 text-white rounded-lg text-center font-semibold"
             >
-              🔄 Recalculate My Rank
-            </button>
+              📊 View Leaderboard
+            </Link>
           </div>
 
           {/* 🔥 Incoming Loop */}

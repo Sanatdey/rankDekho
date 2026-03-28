@@ -1,4 +1,5 @@
 "use client";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { trackEvent } from "../utils/gtag";
@@ -9,14 +10,10 @@ interface LeaderboardEntry {
   marks: number;
   shift?: string;
 
-  // existing
-  rank?: number;
-
-  // 🔥 ADD THIS
-  normalizedRank?: number;
-
-  // 🔥 ALSO ADD (since you use it)
   normalized?: number;
+  normalizedRank?: number;
+  zoneCategoryRank?: number;
+  isSafe?: boolean;
 }
 
 export default function Leaderboard() {
@@ -34,9 +31,9 @@ export default function Leaderboard() {
 
   const [lastId, setLastId] = useState<string | null>(null);
   const [stats, setStats] = useState({ totalUsers: 0, highestMarks: 0 });
+  const [timeLeft, setTimeLeft] = useState(0);
 
-  // 🔥 NEW: normalization stats
-  const [normStats, setNormStats] = useState<any>(null);
+  const LIMIT = 30;
 
   const zones = [
     "Ahmedabad","Ajmer","Allahabad (Prayagraj)","Bangalore","Bhopal",
@@ -45,19 +42,10 @@ export default function Leaderboard() {
     "Patna","Ranchi","Secunderabad","Siliguri","Thiruvananthapuram"
   ];
 
-  const LIMIT = 30;
-
   const fetchStats = async () => {
     const res = await fetch("/api/stats");
     const json = await res.json();
     setStats(json);
-  };
-
-  // 🔥 NEW
-  const fetchNormStats = async () => {
-    const res = await fetch("/api/normalization-stats");
-    const json = await res.json();
-    setNormStats(json);
   };
 
   const fetchData = async (loadMore = false) => {
@@ -76,13 +64,9 @@ export default function Leaderboard() {
     const res = await fetch(`/api/leaderboard?${params}`);
     const json = await res.json();
 
-    if (loadMore) {
-      setData((prev) => [...prev, ...json.data]);
-    } else {
-      setData(json.data);
-    }
-
+    setData((prev) => loadMore ? [...prev, ...json.data] : json.data);
     setLastId(json.lastId);
+
     setLoading(false);
   };
 
@@ -94,8 +78,8 @@ export default function Leaderboard() {
 
     const res = await fetch(`/api/search-normalized?name=${input}`);
     const json = await res.json();
-    setSearchResults(json);
 
+    setSearchResults(json);
     setSearchLoading(false);
   };
 
@@ -107,7 +91,6 @@ export default function Leaderboard() {
 
   useEffect(() => {
     fetchStats();
-    fetchNormStats(); // 🔥 NEW
     fetchData();
   }, [zone, category]);
 
@@ -115,83 +98,85 @@ export default function Leaderboard() {
     trackEvent("leaderboard_viewed");
   }, []);
 
-  const userRank = searchResults[0]?.rank;
+  useEffect(() => {
+  const interval = setInterval(() => {
+    const now = Date.now();
 
-  // 🔥 NORMALIZE FUNCTION
-const normalize = (marks: number, shift?: string): number => {
-  if (!normStats || !shift) return 0;
+    const minutes15 = 15 * 60 * 1000;
+    const nextTick = Math.ceil(now / minutes15) * minutes15;
 
-  const shiftStats = normStats.shifts?.[shift];
-  const global = normStats.global;
+    const diff = Math.max(0, nextTick - now);
 
-  if (!shiftStats || shiftStats.sd === 0) return marks;
+    setTimeLeft(diff);
+  }, 1000);
 
-  const normalized =
-    ((marks - shiftStats.mean) / shiftStats.sd) *
-      global.sd +
-    global.mean;
+  return () => clearInterval(interval);
+}, []);
 
-  return Number(normalized.toFixed(2));
+  const rawData: LeaderboardEntry[] = search
+  ? searchResults || []
+  : data || [];
+
+  const finalData = [...rawData].sort((a, b) => {
+    // 🎯 If BOTH selected → use category rank
+    if (zone && category) {
+      return (a.zoneCategoryRank || 999999) - (b.zoneCategoryRank || 999999);
+    }
+
+    // 🌍 Otherwise ALWAYS use All India Rank
+    return (a.normalizedRank || 999999) - (b.normalizedRank || 999999);
+  });
+
+  const formatTime = (ms: number) => {
+  const totalSeconds = Math.floor(ms / 1000);
+
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 };
-
-const enrichedData = data.map(item => ({
-  ...item,
-  normalized: normalize(item.marks, item.shift)
-}));
-
-  const sortedByNorm = [...enrichedData].sort(
-    (a, b) => b.normalized - a.normalized
-  );
-
-  const finalData = search ? searchResults : sortedByNorm;
-
-  // 🔥 TOP 3 (only leaderboard mode)
-  const top3 = !search ? data.slice(0, 3) : [];
 
   return (
     <main className="min-h-screen bg-gray-50 px-4 py-6">
 
       {/* HEADER */}
-      <div className="max-w-2xl mx-auto text-center">
-        <h1 className="text-3xl font-bold">
-          RRB Nursing Superintendent 2026
-        </h1>
 
-        <div className="mt-3 flex items-center justify-center gap-2">
-          <p className="text-red-600 font-bold">
-            🔥 {stats.totalUsers}+ students already ranked
-          </p>
-
-          <button
-            onClick={() => fetchData()}
-            className="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 transition"
-          >
-            🔄
-          </button>
+        <div className="max-w-2xl mx-auto mt-3 text-center">
+            <h1 className="text-3xl text-center font-bold">
+            RRB Nursing Superintendent 2026
+          </h1>
         </div>
 
-       <p className="mt-3 flex items-center justify-center gap-2">
-        🏆 Highest mark:
-        <span className="px-3 py-1 rounded-full bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold shadow-md">
-          {stats.highestMarks}
+      <div className="max-w-2xl mx-auto mt-3 flex items-center justify-between bg-white border rounded-xl px-4 py-3 text-xs shadow-sm">
+        <span className="text-gray-600">
+          🔥 <b>{stats.totalUsers}+</b> students ranked
         </span>
-      </p>
+
+        <span className="text-gray-300">|</span>
+
+        <span className="text-orange-600 font-semibold">
+          ⚡ Update in {formatTime(timeLeft)}
+        </span>
+
+        <span className="text-gray-300">|</span>
+
+        <span className="text-green-700 font-semibold">
+          🏆 {stats.highestMarks}
+        </span>
       </div>
 
       {/* SEARCH */}
       <div className="max-w-2xl mx-auto mt-4 flex gap-2">
         <input
-          type="text"
-          placeholder="Type your name..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+          placeholder="Type your name..."
           className="w-full border p-2 rounded-lg"
         />
 
         <button
           onClick={handleSearch}
-          className="px-4 bg-gradient-to-r from-amber-600 via-orange-500 to-red-600 text-white rounded-lg font-semibold"
+          className="px-4 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-lg"
         >
           Search
         </button>
@@ -203,40 +188,82 @@ const enrichedData = data.map(item => ({
         )}
       </div>
 
-      {/* 🎯 USER RANK */}
-      {search && userRank && (
-        <div className="max-w-2xl mx-auto mt-4 bg-yellow-100 border border-yellow-300 p-3 rounded-lg text-center font-semibold">
-          🎯 Your Rank: {userRank}
-        </div>
-      )}
+      {/* SEARCH CARD */}
+      {search && searchResults[0] && (() => {
+        const u = searchResults[0];
+
+        const isSafe = u.isSafe;
+        const isBorderline = u.zoneCategoryRank! <= 5;
+
+        let message = "";
+        let color = "";
+        let bg = "";
+
+        if (isSafe) {
+          message = "🎉 You're on track for selection";
+          color = "text-green-700";
+          bg = "bg-green-50 border-green-300";
+        } else if (isBorderline) {
+          message = "🟡 Very close — wait for final cutoff";
+          color = "text-yellow-700";
+          bg = "bg-yellow-50 border-yellow-300";
+        } else {
+          message = "💪 Come back stronger";
+          color = "text-gray-700";
+          bg = "bg-gray-50 border-gray-300";
+        }
+
+        return (
+          <div className={`max-w-2xl mx-auto mt-5 p-5 rounded-2xl border shadow-md ${bg}`}>
+
+            <p className="text-xl font-bold text-center">
+              🎯 {u.name}
+            </p>
+
+            <div className="grid grid-cols-3 gap-3 mt-4 text-center">
+
+              <div className="bg-white p-3 rounded-lg">
+                <p className="text-xs">🌍 AIR</p>
+                <p className="font-bold">#{u.normalizedRank}</p>
+              </div>
+
+              <div className="bg-white p-3 rounded-lg">
+                <p className="text-xs">🎯 Zone Rank</p>
+                <p className="font-bold">#{u.zoneCategoryRank}</p>
+              </div>
+
+              <div className="bg-white p-3 rounded-lg">
+                <p className="text-xs">📊 Norm</p>
+                <p className="font-bold text-green-700">
+                  {Number(u.normalized).toFixed(2)}
+                </p>
+              </div>
+
+            </div>
+
+            <p className={`mt-4 text-center font-semibold ${color}`}>
+              {message}
+            </p>
+
+          </div>
+        );
+      })()}
 
       {/* FILTERS */}
       {!search && (
         <div className="max-w-2xl mx-auto mt-3 flex gap-2">
           <select
-            className="w-full border p-2 rounded-lg"
             value={zone}
-            onChange={(e) => {
-              setZone(e.target.value);
-              trackEvent("zone_selected", {
-                zone: e.target.value || "all",
-              });
-            }}
+            onChange={(e) => setZone(e.target.value)}
+            className="w-full border p-2 rounded-lg"
           >
             <option value="">All Zones</option>
-            {zones.map((z) => (
-              <option key={z}>{z}</option>
-            ))}
+            {zones.map((z) => <option key={z}>{z}</option>)}
           </select>
 
           <select
             value={category}
-            onChange={(e) => {
-              setCategory(e.target.value);
-              trackEvent("category_selected", {
-                category: e.target.value || "all",
-              });
-            }}
+            onChange={(e) => setCategory(e.target.value)}
             className="w-full border p-2 rounded-lg"
           >
             <option value="">All Categories</option>
@@ -249,115 +276,61 @@ const enrichedData = data.map(item => ({
         </div>
       )}
 
-      {/* TABLE */}
-      <div className="max-w-2xl mx-auto mt-6 bg-white rounded-xl shadow-sm">
+      {/* CONTEXT TEXT */}
+      <p className="text-center text-xs text-gray-600 mt-2">
+        {!zone && !category && "🌍 Showing All India Rank"}
+        {zone && !category && "📍 Zone selected — still All India Rank"}
+        {zone && category && "🎯 Showing actual selection rank"}
+      </p>
 
-        <div className="grid grid-cols-5 px-4 py-3 border-b text-sm font-medium text-gray-500">
-          <span>Rank</span>
-          <span>Name</span>
-          <span>Marks</span>
-          <span>Shift</span>
-          <span>Norm</span>
-        </div>
+      {/* LEGEND */}
+      <p className="text-center text-xs text-gray-500 mt-2">
+        🟢 Safe | 🟡 Borderline | 🔴 Risk
+      </p>
 
-        {(loading && !search) || searchLoading ? (
-          [...Array(6)].map((_, i) => (
-            <div key={i} className="grid grid-cols-5 px-4 py-3 animate-pulse">
-              <div className="h-4 bg-gray-200 rounded"></div>
-              <div className="h-4 bg-gray-200 rounded"></div>
-              <div className="h-4 bg-gray-200 rounded"></div>
-              <div className="h-4 bg-gray-200 rounded"></div>
-              <div className="h-4 bg-gray-200 rounded"></div>
-            </div>
-          ))
-        ) : finalData.length === 0 ? (
-          <p className="text-center py-6 text-gray-500">No results found</p>
-        ) : (
-          finalData.map((item, index) => {
-            const rank = search
-                ? item.normalizedRank || item.rank
-                : index + 1;
-            const highlight = search && index === 0;
+      {/* LIST */}
+      <div className="max-w-2xl mx-auto mt-4">
+        {finalData.map((item, index) => {
 
-            return (
-              <div
-                key={item.id}
-                className={`grid grid-cols-5 px-4 py-3 border-b ${
-                  highlight ? "bg-yellow-50 border-yellow-300" : ""
-                }`}
-              >
-                <span className="flex items-center">
-                  {rank ? (
-                    <div
-                      className={`flex items-center justify-center w-10 h-10 rounded-full text-base font-extrabold shadow-md
-                        ${
-                          rank === 1
-                            ? "bg-gradient-to-br from-yellow-400 to-amber-600 text-white"
-                            : rank === 2
-                            ? "bg-gradient-to-br from-gray-300 to-gray-500 text-white"
-                            : rank === 3
-                            ? "bg-gradient-to-br from-orange-400 to-orange-600 text-white"
-                            : "bg-gray-100 text-gray-700"
-                        }`}
-                    >
-                      {rank}
-                    </div>
-                  ) : (
-                    "—"
-                  )}
-                </span>
-                <span className="truncate font-medium">{item.name}</span>
-                <span>{item.marks}</span>
-                <span>{item.shift ? `Shift ${item.shift}` : "-"}</span>
-                <span>{normalize(item.marks, item.shift)}</span>
+          const isSafe = item.isSafe;
+          const isBorderline = item.zoneCategoryRank! <= 5;
+
+          return (
+            <div
+              key={item.id}
+              className={`p-4 mb-3 rounded-xl border shadow-sm
+
+                ${isSafe ? "bg-green-50 border-green-200" : ""}
+                ${!isSafe && isBorderline ? "bg-yellow-50 border-yellow-300" : ""}
+                ${!isSafe && !isBorderline ? "bg-white border-gray-200" : ""}
+              `}
+            >
+              <div className="grid grid-cols-5 items-center">
+
+                <div className="font-bold">
+                  {zone && category
+                    ? `#${item.zoneCategoryRank}`
+                    : `#${item.normalizedRank}`}
+                </div>
+
+                <div className="font-semibold">{item.name}</div>
+                <div>{item.marks}</div>
+                <div>S{item.shift}</div>
+
+                <div className={`font-semibold
+                  ${isSafe ? "text-green-700" : ""}
+                  ${!isSafe && isBorderline ? "text-yellow-700" : ""}
+                  ${!isSafe && !isBorderline ? "text-red-600" : ""}
+                `}>
+                  {Number(item.normalized).toFixed(2)}
+                </div>
+
               </div>
-            );
-          })
-        )}
+            </div>
+          );
+        })}
       </div>
 
-      {/* LOAD MORE */}
-      {!search && lastId && data.length >= LIMIT && (
-        <div className="max-w-2xl mx-auto mt-4 text-center">
-          <button
-            onClick={() => fetchData(true)}
-            disabled={loading}
-            className="px-6 py-2 bg-gradient-to-r from-amber-600 via-orange-500 to-red-600 text-white rounded-lg font-semibold disabled:opacity-50"
-          >
-            {loading ? "Loading..." : "Load More"}
-          </button>
-        </div>
-      )}
-
-      {/* CTA */}
-      <div className="max-w-2xl mx-auto mt-8 bg-white rounded-xl shadow-sm p-5 text-center border">
-        <p className="text-sm text-gray-500">🎯 Rank mil gaya?</p>
-        <h3 className="text-lg font-semibold mt-1">
-          Selection hoga ya nahi? 🤔
-        </h3>
-        <p className="mt-2 text-sm">
-          ℹ️{" "}
-          <Link
-            href="/normalization-info"
-            onClick={() =>
-              trackEvent("normalization_info_clicked", { location: "leaderboard" })
-            }
-            className="text-blue-600 underline"
-          >
-            How your marks will change after normalization
-          </Link>
-        </p>
-        <a
-          href="https://www.youtube.com/@VidyaDeepamOfficial"
-          target="_blank"
-          onClick={() =>
-            trackEvent("youtube_channel_clicked_leaderboard", { location: "leaderboard" })
-          }
-          className="inline-block mt-4 bg-gradient-to-r from-amber-600 via-orange-500 to-red-600 text-white px-6 py-2 rounded-lg font-semibold"
-        >
-          📊 Daily updates on YouTube 📊
-        </a>
-      </div>
     </main>
   );
 }
